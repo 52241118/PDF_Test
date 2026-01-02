@@ -3,115 +3,128 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PDF Viewer</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
+    <title>PDF Viewer Debug</title>
     
     <style>
-        * { box-sizing: border-box; }
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            background-color: #1a1a1a; /* 아주 어두운 회색 */
-            overflow: hidden; /* 스크롤 원천 차단 */
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #222;
+            overflow: hidden;
         }
-        
-        /* 책이 들어갈 컨테이너 */
         #book {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
         }
-        
-        /* 로딩 메시지 */
-        #loader {
+        #message-box {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             color: #fff;
-            font-size: 1.2rem;
+            font-family: sans-serif;
             text-align: center;
+            width: 80%;
+            line-height: 1.6;
+            z-index: 9999;
         }
+        .error { color: #ff6b6b; font-weight: bold; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; }
     </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
 </head>
 <body>
 
-    <div id="loader">로딩중...</div>
+    <div id="message-box">시스템 점검 중...</div>
     <div id="book"></div>
 
     <script>
-        // ==========================================
-        var pdfUrl = 'a.pdf'; // 파일명 확인!
-        // ==========================================
-
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        const msgBox = document.getElementById('message-box');
         
-        // 1. 현재 화면 크기 구하기
-        const winWidth = window.innerWidth;
-        const winHeight = window.innerHeight;
+        // --------------------------------------------------------
+        // [중요] 여기에 실제 PDF 파일 이름을 정확히 입력하세요
+        var pdfUrl = 'sample.pdf'; 
+        // --------------------------------------------------------
 
-        const bookElement = document.getElementById('book');
-        const loader = document.getElementById('loader');
+        function logError(msg, detail) {
+            console.error(msg, detail);
+            msgBox.innerHTML = `<div class="error">⚠️ 오류 발생!<br>${msg}<br><br><small>${detail || ''}</small></div>`;
+        }
 
-        // 2. PageFlip 설정 (화면 크기 강제 주입)
-        const pageFlip = new St.PageFlip(bookElement, {
-            width: winWidth,  // 화면 너비 그대로 사용
-            height: winHeight, // 화면 높이 그대로 사용
-            
-            size: 'fixed', // stretch 대신 fixed로 고정하되 크기를 화면만큼 줌
-            
-            // 모바일 최적화 설정
-            showCover: true,
-            mobileScrollSupport: false, // 터치 스크롤 끄기
-            usePortrait: true, // 한 페이지씩 보기
-            startPage: 0,
-            
-            // 넘김 효과 (부드럽게)
-            flippingTime: 1200, // 1.2초 동안 넘어감 (아주 부드러움)
-            maxShadowOpacity: 0.5 // 그림자 진하게
-        });
+        async function startApp() {
+            try {
+                // 1. 라이브러리 로드 체크
+                if (typeof pdfjsLib === 'undefined') throw new Error("PDF.js 라이브러리가 로드되지 않았습니다.");
+                if (typeof St === 'undefined') throw new Error("PageFlip 라이브러리가 로드되지 않았습니다.");
 
-        pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
-            const numPages = pdf.numPages;
-            const pages = [];
+                msgBox.innerHTML = "PDF 파일을 다운로드 중입니다...";
 
-            for (let i = 1; i <= numPages; i++) {
-                const page = await pdf.getPage(i);
+                // 2. 워커 설정
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+                // 3. PDF 파일 불러오기
+                const loadingTask = pdfjsLib.getDocument(pdfUrl);
+                const pdf = await loadingTask.promise;
+
+                msgBox.innerHTML = `총 ${pdf.numPages}페이지를 변환 중입니다...`;
+
+                // 4. 페이지 렌더링
+                const pages = [];
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 2 }); // 고해상도
+                    
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    
+                    // 스타일: 꽉 차게
+                    canvas.style.width = '100%';
+                    canvas.style.height = '100%';
+                    canvas.style.objectFit = 'contain';
+
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+                    const pageDiv = document.createElement('div');
+                    pageDiv.style.display = 'flex';
+                    pageDiv.style.alignItems = 'center';
+                    pageDiv.style.justifyContent = 'center';
+                    pageDiv.appendChild(canvas);
+                    pages.push(pageDiv);
+                }
+
+                // 5. 책 생성 (PageFlip)
+                const bookElement = document.getElementById('book');
+                const pageFlip = new St.PageFlip(bookElement, {
+                    width: window.innerWidth, // 화면 너비
+                    height: window.innerHeight, // 화면 높이
+                    size: 'fixed',
+                    showCover: true,
+                    mobileScrollSupport: false,
+                    usePortrait: true,
+                    flippingTime: 1000
+                });
+
+                // 6. 페이지 등록 및 로더 제거
+                pageFlip.loadFromHTML(pages);
+                msgBox.style.display = 'none'; // 메시지 숨김
+
+            } catch (err) {
+                // 에러 발생 시 화면에 출력
+                let errorMsg = err.message;
                 
-                // 3. 고해상도 렌더링
-                const viewport = page.getViewport({ scale: 2 }); 
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
+                if (errorMsg.includes("Missing PDF")) {
+                    errorMsg = "PDF 파일을 찾을 수 없습니다.<br>코드 안의 'pdfUrl' 이름이 실제 파일명과 같은지 확인하세요.<br>(대소문자 구별 필수)";
+                } else if (errorMsg.includes("Cannot read")) {
+                    errorMsg = "데이터를 읽을 수 없습니다.<br>(변수 초기화 실패)";
+                }
                 
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                
-                // CSS로 캔버스를 꽉 채움
-                canvas.style.width = '100%';
-                canvas.style.height = '100%';
-                canvas.style.objectFit = 'contain'; // 비율 유지하며 최대 크기
-
-                await page.render({ context, viewport }).promise;
-
-                const pageDiv = document.createElement('div');
-                pageDiv.style.backgroundColor = 'transparent'; // 배경 투명
-                // flex로 이미지를 중앙 정렬 (비율 차이로 남는 여백 처리)
-                pageDiv.style.display = 'flex';
-                pageDiv.style.alignItems = 'center';
-                pageDiv.style.justifyContent = 'center';
-                
-                pageDiv.appendChild(canvas);
-                pages.push(pageDiv);
+                logError("실행 중 문제가 생겼습니다.", errorMsg);
             }
+        }
 
-            loader.style.display = 'none';
-            pageFlip.loadFromHTML(pages);
-
-        }).catch(err => {
-            loader.innerHTML = "Error: " + err.message;
-        });
+        // 앱 시작
+        startApp();
 
     </script>
 </body>
