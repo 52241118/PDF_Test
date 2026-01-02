@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>Fixed Slide Viewer</title>
+    <title>White Slide Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     
@@ -11,9 +11,8 @@
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            background-color: #333;
-            /* 터치 동작 최적화 */
-            touch-action: pan-x pan-y; 
+            /* 1. 배경을 흰색으로 변경 */
+            background-color: #ffffff; 
         }
 
         #container {
@@ -23,24 +22,19 @@
             overflow-x: auto;
             overflow-y: hidden;
             
-            /* [핵심] 스냅 설정 */
+            /* 한 장씩 딱딱 걸리게 (기존 유지) */
             scroll-snap-type: x mandatory; 
             
-            /* 부드러운 스크롤 */
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
         }
 
         .page {
-            /* 화면 꽉 차게 */
             flex: 0 0 100vw; 
             height: 100vh;
             
-            /* [핵심] 스크롤 정렬 위치 */
             scroll-snap-align: start;
-            
-            /* [NEW] 브레이크 기능 추가! */
-            /* always: 아무리 세게 밀어도 무조건 다음 장에서 멈춤 */
+            /* 한 장씩 넘어가게 브레이크 (기존 유지) */
             scroll-snap-stop: always; 
             
             display: flex;
@@ -53,14 +47,15 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            /* 흰 배경과 구분되게 옅은 그림자 */
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
         }
 
         #loader {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
+            color: #333; /* 글자색 검정 */
             font-size: 1.1rem;
             z-index: 100;
         }
@@ -70,7 +65,8 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0,0,0,0.6);
+            /* 페이지 번호 배경을 조금 더 연하게 */
+            background: rgba(0,0,0,0.5);
             color: white;
             padding: 5px 15px;
             border-radius: 15px;
@@ -105,7 +101,7 @@
 
                 for (let i = 1; i <= total; i++) {
                     const page = await pdf.getPage(i);
-                    // 3배 화질
+                    // 3배 화질 (확대 시 깨짐 방지)
                     const viewport = page.getViewport({ scale: 3 });
 
                     const canvas = document.createElement('canvas');
