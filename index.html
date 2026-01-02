@@ -3,57 +3,88 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>PDF Viewer</title>
+    <title>Simple PDF Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
     
     <style>
+        /* 기본 설정 */
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            /* 1. 배경 흰색으로 변경 */
-            background-color: #ffffff; 
-        }
-        
-        #book {
-            margin: 0 auto;
-            height: 100vh;
+            background-color: #ffffff; /* 흰색 배경 */
+            overflow: hidden; /* 전체 스크롤 막고 내부 컨테이너만 스크롤 */
         }
 
+        /* 가로 스크롤 컨테이너 (핵심) */
+        #viewer-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            overflow-x: auto; /* 가로 스크롤 허용 */
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory; /* 한 장씩 딱딱 걸리게 스냅 */
+            -webkit-overflow-scrolling: touch; /* 모바일 부드러운 스크롤 */
+        }
+
+        /* 개별 페이지 스타일 */
+        .page-wrapper {
+            flex: 0 0 100%; /* 화면 꽉 차게 */
+            width: 100%;
+            height: 100%;
+            scroll-snap-align: start; /* 스크롤 시 시작점에 맞춤 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: auto; /* 확대 시 내부 스크롤 허용 */
+        }
+
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; /* 비율 유지하며 화면에 맞춤 */
+            display: block;
+            /* 그림자 효과 (선택사항) */
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+        }
+
+        /* 로딩 메시지 */
         #loader {
             position: absolute;
             top: 50%; left: 0; right: 0;
             transform: translateY(-50%);
             text-align: center;
-            color: #333; /* 배경이 흰색이라 글자는 검은색으로 */
-            font-size: 1.2rem;
+            color: #333;
+            font-size: 1.1rem;
             z-index: 100;
         }
 
-        /* 2. 페이지 번호 스타일 추가 */
+        /* 페이지 번호 */
         #page-count {
-            position: fixed;
+            position: absolute;
             bottom: 20px;
-            left: 0;
-            right: 0;
+            left: 0; right: 0;
             text-align: center;
-            color: #555;
-            font-size: 14px;
-            font-family: sans-serif;
-            background-color: rgba(255, 255, 255, 0.8); /* 반투명 배경 */
-            padding: 5px 0;
+            pointer-events: none;
             z-index: 200;
-            pointer-events: none; /* 터치 방해 안 하도록 설정 */
+        }
+        #page-count span {
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
 
-    <div id="loader">문서를 불러오는 중...</div>
-    <div id="book"></div>
+    <div id="loader">문서 로딩 중...</div>
     
-    <div id="page-count"></div>
+    <div id="page-count"><span>1 / --</span></div>
+
+    <div id="viewer-container"></div>
 
     <script>
         // ==========================================
@@ -62,83 +93,50 @@
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         
+        const container = document.getElementById('viewer-container');
         const loader = document.getElementById('loader');
-        const bookElement = document.getElementById('book');
-        const pageCountElement = document.getElementById('page-count');
+        const pageCountBox = document.querySelector('#page-count span');
 
-        async function loadBook() {
+        async function loadPDF() {
             try {
                 const loadingTask = pdfjsLib.getDocument(pdfUrl);
                 const pdf = await loadingTask.promise;
-                
-                // 전체 페이지 수 저장
                 const totalPages = pdf.numPages;
 
-                // 비율 계산 로직 (기존 유지)
-                const firstPage = await pdf.getPage(1);
-                const viewport = firstPage.getViewport({ scale: 1 });
-                const ratio = viewport.width / viewport.height;
-                const screenH = window.innerHeight;
-                const screenW = window.innerWidth;
-                
-                let bookHeight = screenH;
-                let bookWidth = bookHeight * ratio;
+                pageCountBox.innerText = `1 / ${totalPages}`;
 
-                if (bookWidth > screenW) {
-                    bookWidth = screenW;
-                    bookHeight = bookWidth / ratio;
-                }
-
-                const pageFlip = new St.PageFlip(bookElement, {
-                    width: bookWidth,
-                    height: bookHeight,
-                    size: 'fixed',
-                    showCover: true,
-                    usePortrait: true,
-                    mobileScrollSupport: true,
-                    flippingTime: 800
-                });
-
-                const pages = [];
                 for (let i = 1; i <= totalPages; i++) {
                     const page = await pdf.getPage(i);
-                    // 고해상도 유지 (3배)
-                    const hdViewport = page.getViewport({ scale: 3.0 });
+                    
+                    // 3배 고해상도 (확대 시 깨짐 방지)
+                    const viewport = page.getViewport({ scale: 3.0 });
 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = hdViewport.width;
-                    canvas.height = hdViewport.height;
-                    canvas.style.width = '100%';
-                    canvas.style.height = '100%';
-                    
-                    await page.render({ canvasContext: ctx, viewport: hdViewport }).promise;
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
 
-                    const pageDiv = document.createElement('div');
-                    pageDiv.style.display = 'flex';
-                    pageDiv.style.justifyContent = 'center';
-                    pageDiv.style.alignItems = 'center';
-                    pageDiv.style.backgroundColor = 'white';
+                    // 캔버스 스타일 (화면에 맞춤)
+                    // 중요: 여기서 width/height를 100%로 주지 않고 max로 제어해야 줌이 자연스러움
                     
-                    // 그림자 효과 (흰 배경에서 종이 구분을 위해 약간 추가)
-                    pageDiv.style.boxShadow = "0 0 5px rgba(0,0,0,0.1)"; 
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+                    // 페이지 감싸는 div
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'page-wrapper';
                     
-                    pageDiv.appendChild(canvas);
-                    pages.push(pageDiv);
+                    wrapper.appendChild(canvas);
+                    container.appendChild(wrapper);
                 }
 
                 loader.style.display = 'none';
-                pageFlip.loadFromHTML(pages);
 
-                // 3. 페이지 번호 초기화 및 업데이트 로직
-                // 초기값 설정
-                pageCountElement.innerText = "1 / " + totalPages;
-
-                // 페이지 넘길 때마다 번호 갱신
-                pageFlip.on('flip', (e) => {
-                    // e.data는 현재 페이지 인덱스 (0부터 시작하므로 +1)
-                    const currentPage = e.data + 1;
-                    pageCountElement.innerText = currentPage + " / " + totalPages;
+                // 스크롤 이벤트로 페이지 번호 감지
+                container.addEventListener('scroll', () => {
+                    const width = container.clientWidth;
+                    // 현재 스크롤 위치를 너비로 나누어 페이지 계산
+                    const currentPage = Math.round(container.scrollLeft / width) + 1;
+                    pageCountBox.innerText = `${currentPage} / ${totalPages}`;
                 });
 
             } catch (err) {
@@ -146,8 +144,7 @@
             }
         }
 
-        loadBook();
-
+        loadPDF();
     </script>
 </body>
 </html>
