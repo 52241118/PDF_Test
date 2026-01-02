@@ -19,13 +19,13 @@
   #wrap {
     width: 100%;
     height: 100%;
-    touch-action: none;   /* ⭐ 화면 전체에서 제스처 허용 */
+    touch-action: none;
   }
 
   canvas {
     display: block;
     margin: auto;
-    pointer-events: none; /* ⭐ canvas는 터치 먹지 않게 */
+    pointer-events: none;
   }
 </style>
 </head>
@@ -55,22 +55,30 @@ pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   renderPage();
 });
 
-/* 페이지 렌더 */
+/* ===== 페이지 렌더 (핵심) ===== */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
-    const base = page.getViewport({ scale: 1 });
-    const effectiveHeight = window.innerHeight * 0.85;
+    // 🔴 canvas 상태 완전 초기화 (뒤집힘 방지)
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
 
+    const base = page.getViewport({ scale: 1, rotation: 0 });
+
+    const effectiveHeight = window.innerHeight * 0.85;
     const scale = Math.min(
       window.innerWidth / base.width,
       effectiveHeight / base.height
     );
 
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({
+      scale: scale,
+      rotation: 0
+    });
 
     canvas.width  = viewport.width;
     canvas.height = viewport.height;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     page.render({
       canvasContext: ctx,
@@ -86,7 +94,6 @@ function nextPage() {
     renderPage();
   }
 }
-
 function prevPage() {
   if (pageNum > 1) {
     pageNum--;
@@ -94,7 +101,7 @@ function prevPage() {
   }
 }
 
-/* ===== 화면 전체 스와이프 처리 (핵심) ===== */
+/* ===== 전체 화면 스와이프 ===== */
 let startX = 0, startY = 0;
 
 wrap.addEventListener('touchstart', e => {
@@ -111,7 +118,7 @@ wrap.addEventListener('touchend', e => {
   }
 });
 
-/* 회전 / 주소창 대응 */
+/* 회전/주소창 변화 대응 */
 window.addEventListener('resize', renderPage);
 window.visualViewport &&
   window.visualViewport.addEventListener('resize', renderPage);
