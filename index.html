@@ -2,13 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+
+<!-- ⭐ 확대/축소 완전 차단 (핵심) -->
 <meta name="viewport"
       content="width=device-width,
                initial-scale=1,
                maximum-scale=1,
                user-scalable=no">
 
-<title>Swipe Only Test</title>
+<title>PDF Swipe Viewer</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <style>
 html, body {
@@ -16,40 +20,108 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: white;
+  background: #ffffff;
+}
+
+canvas {
+  display: block;
+  margin: auto;
 }
 </style>
 </head>
 
 <body>
 
-<div style="height:100%;display:flex;align-items:center;justify-content:center;">
-  <h1>← → 스와이프 테스트</h1>
-</div>
+<canvas id="pdf"></canvas>
 
 <script>
-/* ===== 핀치 줌 완전 차단 ===== */
+/* =====================================================
+   1. 핀치 줌 / 제스처 완전 차단 (성공한 테스트와 동일)
+   ===================================================== */
 document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('gesturechange', e => e.preventDefault());
 document.addEventListener('gestureend', e => e.preventDefault());
 
-/* ===== 스와이프 ===== */
-let sx = 0;
-let sy = 0;
+/* =====================================================
+   2. PDF.js 설정
+   ===================================================== */
+const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
+
+let pdfDoc = null;
+let pageNum = 1;
+
+const canvas = document.getElementById('pdf');
+const ctx = canvas.getContext('2d');
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+/* =====================================================
+   3. PDF 로드
+   ===================================================== */
+pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
+  pdfDoc = pdf;
+  renderPage();
+});
+
+/* =====================================================
+   4. PDF 렌더 (안 잘림 / 흰 배경)
+   ===================================================== */
+function renderPage() {
+  pdfDoc.getPage(pageNum).then(page => {
+
+    const base = page.getViewport({ scale: 1 });
+
+    const scale = Math.min(
+      window.innerWidth / base.width,
+      window.innerHeight / base.height
+    );
+
+    const viewport = page.getViewport({ scale });
+
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    page.render({
+      canvasContext: ctx,
+      viewport: viewport
+    });
+  });
+}
+
+/* =====================================================
+   5. 스와이프 (성공한 테스트 방식 그대로)
+   ===================================================== */
+let startX = 0;
+let startY = 0;
 
 document.addEventListener('touchstart', e => {
-  sx = e.touches[0].clientX;
-  sy = e.touches[0].clientY;
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
 }, { passive: false });
 
 document.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - sx;
-  const dy = e.changedTouches[0].clientY - sy;
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
 
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-    alert(dx < 0 ? '다음 페이지' : '이전 페이지');
+    if (dx < 0 && pageNum < pdfDoc.numPages) {
+      pageNum++;
+      renderPage();
+    }
+    if (dx > 0 && pageNum > 1) {
+      pageNum--;
+      renderPage();
+    }
   }
 }, { passive: false });
+
+/* =====================================================
+   6. 화면 회전 대응
+   ===================================================== */
+window.addEventListener('resize', renderPage);
 </script>
 
 </body>
