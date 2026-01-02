@@ -3,58 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PDF</title>
+  <title>PDF Test</title>
 
+  <!-- 안정성 최고 버전 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
   <style>
-    body { margin:0; background:#000; overflow:hidden; }
+    body { margin:0; background:#fff; }
     canvas { display:block; margin:auto; }
-    .ctrl {
-      position:fixed; bottom:10px; width:100%;
-      text-align:center;
-    }
-    button { font-size:18px; padding:10px 20px; }
   </style>
 </head>
 <body>
 
 <canvas id="c"></canvas>
 
-<div class="ctrl">
-  <button onclick="p()">◀ 이전</button>
-  <span id="n"></span>
-  <button onclick="n()">다음 ▶</button>
-</div>
-
 <script>
 const url = 'https://52241118.github.io/PDF_Test/a.pdf';
 
-let pdf, page = 1;
-const c = document.getElementById('c');
-const ctx = c.getContext('2d');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-pdfjsLib.getDocument(url).promise.then(d=>{
-  pdf=d; r();
-}).catch(e=>{
-  alert('PDF 로드 실패: '+e.message);
-});
+pdfjsLib.getDocument(url).promise.then(pdf => {
+  return pdf.getPage(1);
+}).then(page => {
 
-function r(){
-  pdf.getPage(page).then(p=>{
-    const v=p.getViewport({scale:1});
-    const s=Math.min(innerWidth/v.width, innerHeight/v.height);
-    const vp=p.getViewport({scale:s});
-    c.width=vp.width; c.height=vp.height;
-    p.render({canvasContext:ctx, viewport:vp});
-    document.getElementById('n').innerText=page+'/'+pdf.numPages;
+  const viewport = page.getViewport({ scale: 1.5 });
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  page.render({
+    canvasContext: ctx,
+    viewport: viewport
   });
-}
-function n(){ if(page<pdf.numPages){page++;r();}}
-function p(){ if(page>1){page--;r();}}
+
+}).catch(err => {
+  document.body.innerHTML =
+    '<h2>PDF 로딩 실패</h2><pre>' + err.message + '</pre>';
+});
 </script>
 
 </body>
