@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>White Slide Viewer</title>
+    <title>Clean White Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     
@@ -11,8 +11,7 @@
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            /* 1. 배경을 흰색으로 변경 */
-            background-color: #ffffff; 
+            background-color: #ffffff; /* 완전 흰색 배경 */
         }
 
         #container {
@@ -22,7 +21,7 @@
             overflow-x: auto;
             overflow-y: hidden;
             
-            /* 한 장씩 딱딱 걸리게 (기존 유지) */
+            /* 한 장씩 넘기기 */
             scroll-snap-type: x mandatory; 
             
             scroll-behavior: smooth;
@@ -34,7 +33,7 @@
             height: 100vh;
             
             scroll-snap-align: start;
-            /* 한 장씩 넘어가게 브레이크 (기존 유지) */
+            /* 강제 브레이크 (한 장씩만 이동) */
             scroll-snap-stop: always; 
             
             display: flex;
@@ -47,15 +46,20 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            /* 흰 배경과 구분되게 옅은 그림자 */
-            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            
+            /* [수정] 그림자 제거: 아주 깔끔하게 떨어짐 */
+            box-shadow: none; 
+            
+            /* (선택) 만약 문서 경계가 너무 안 보이면 아래 주석을 해제해서 
+               아주 얇은 회색 테두리만 살짝 넣으세요. */
+            /* border: 1px solid #eee; */
         }
 
         #loader {
             position: absolute;
             top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: #333; /* 글자색 검정 */
+            color: #333;
             font-size: 1.1rem;
             z-index: 100;
         }
@@ -65,12 +69,12 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            /* 페이지 번호 배경을 조금 더 연하게 */
-            background: rgba(0,0,0,0.5);
+            /* 페이지 번호 배경도 더 연하고 심플하게 */
+            background: rgba(0,0,0,0.3);
             color: white;
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 14px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
             z-index: 200;
             pointer-events: none;
         }
@@ -101,7 +105,7 @@
 
                 for (let i = 1; i <= total; i++) {
                     const page = await pdf.getPage(i);
-                    // 3배 화질 (확대 시 깨짐 방지)
+                    // 3배 화질
                     const viewport = page.getViewport({ scale: 3 });
 
                     const canvas = document.createElement('canvas');
