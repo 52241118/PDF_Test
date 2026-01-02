@@ -3,148 +3,142 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>Simple PDF Viewer</title>
+    <title>Fixed Slide Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     
     <style>
-        /* 기본 설정 */
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            background-color: #ffffff; /* 흰색 배경 */
-            overflow: hidden; /* 전체 스크롤 막고 내부 컨테이너만 스크롤 */
+            background-color: #333;
+            /* 터치 동작 최적화 */
+            touch-action: pan-x pan-y; 
         }
 
-        /* 가로 스크롤 컨테이너 (핵심) */
-        #viewer-container {
+        #container {
             display: flex;
             width: 100%;
             height: 100%;
-            overflow-x: auto; /* 가로 스크롤 허용 */
+            overflow-x: auto;
             overflow-y: hidden;
-            scroll-snap-type: x mandatory; /* 한 장씩 딱딱 걸리게 스냅 */
-            -webkit-overflow-scrolling: touch; /* 모바일 부드러운 스크롤 */
+            
+            /* [핵심] 스냅 설정 */
+            scroll-snap-type: x mandatory; 
+            
+            /* 부드러운 스크롤 */
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* 개별 페이지 스타일 */
-        .page-wrapper {
-            flex: 0 0 100%; /* 화면 꽉 차게 */
-            width: 100%;
-            height: 100%;
-            scroll-snap-align: start; /* 스크롤 시 시작점에 맞춤 */
+        .page {
+            /* 화면 꽉 차게 */
+            flex: 0 0 100vw; 
+            height: 100vh;
+            
+            /* [핵심] 스크롤 정렬 위치 */
+            scroll-snap-align: start;
+            
+            /* [NEW] 브레이크 기능 추가! */
+            /* always: 아무리 세게 밀어도 무조건 다음 장에서 멈춤 */
+            scroll-snap-stop: always; 
+            
             display: flex;
             justify-content: center;
             align-items: center;
             position: relative;
-            overflow: auto; /* 확대 시 내부 스크롤 허용 */
         }
 
         canvas {
             max-width: 100%;
             max-height: 100%;
-            object-fit: contain; /* 비율 유지하며 화면에 맞춤 */
-            display: block;
-            /* 그림자 효과 (선택사항) */
-            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            object-fit: contain;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
 
-        /* 로딩 메시지 */
         #loader {
             position: absolute;
-            top: 50%; left: 0; right: 0;
-            transform: translateY(-50%);
-            text-align: center;
-            color: #333;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
             font-size: 1.1rem;
             z-index: 100;
         }
 
-        /* 페이지 번호 */
-        #page-count {
-            position: absolute;
+        #page-num {
+            position: fixed;
             bottom: 20px;
-            left: 0; right: 0;
-            text-align: center;
-            pointer-events: none;
-            z-index: 200;
-        }
-        #page-count span {
-            background: rgba(0, 0, 0, 0.6);
-            color: #fff;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            color: white;
             padding: 5px 15px;
-            border-radius: 20px;
+            border-radius: 15px;
             font-size: 14px;
+            z-index: 200;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
     <div id="loader">문서 로딩 중...</div>
-    
-    <div id="page-count"><span>1 / --</span></div>
-
-    <div id="viewer-container"></div>
+    <div id="page-num">1 / --</div>
+    <div id="container"></div>
 
     <script>
-        // ==========================================
+        // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
         var pdfUrl = 'a.pdf'; // 파일명 확인
-        // ==========================================
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
         
-        const container = document.getElementById('viewer-container');
+        const container = document.getElementById('container');
         const loader = document.getElementById('loader');
-        const pageCountBox = document.querySelector('#page-count span');
+        const pageNumDiv = document.getElementById('page-num');
 
-        async function loadPDF() {
+        async function renderPDF() {
             try {
-                const loadingTask = pdfjsLib.getDocument(pdfUrl);
-                const pdf = await loadingTask.promise;
-                const totalPages = pdf.numPages;
+                const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+                const total = pdf.numPages;
+                pageNumDiv.innerText = `1 / ${total}`;
 
-                pageCountBox.innerText = `1 / ${totalPages}`;
-
-                for (let i = 1; i <= totalPages; i++) {
+                for (let i = 1; i <= total; i++) {
                     const page = await pdf.getPage(i);
-                    
-                    // 3배 고해상도 (확대 시 깨짐 방지)
-                    const viewport = page.getViewport({ scale: 3.0 });
+                    // 3배 화질
+                    const viewport = page.getViewport({ scale: 3 });
 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     canvas.width = viewport.width;
                     canvas.height = viewport.height;
-
-                    // 캔버스 스타일 (화면에 맞춤)
-                    // 중요: 여기서 width/height를 100%로 주지 않고 max로 제어해야 줌이 자연스러움
                     
+                    canvas.style.width = "auto";
+                    canvas.style.height = "auto";
+                    canvas.style.maxWidth = "100%";
+                    canvas.style.maxHeight = "100%";
+
                     await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
-                    // 페이지 감싸는 div
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'page-wrapper';
-                    
-                    wrapper.appendChild(canvas);
-                    container.appendChild(wrapper);
+                    const div = document.createElement('div');
+                    div.className = 'page';
+                    div.appendChild(canvas);
+                    container.appendChild(div);
                 }
 
                 loader.style.display = 'none';
 
-                // 스크롤 이벤트로 페이지 번호 감지
+                // 페이지 번호 갱신
                 container.addEventListener('scroll', () => {
-                    const width = container.clientWidth;
-                    // 현재 스크롤 위치를 너비로 나누어 페이지 계산
-                    const currentPage = Math.round(container.scrollLeft / width) + 1;
-                    pageCountBox.innerText = `${currentPage} / ${totalPages}`;
+                    const pageIndex = Math.round(container.scrollLeft / window.innerWidth) + 1;
+                    pageNumDiv.innerText = `${pageIndex} / ${total}`;
                 });
 
             } catch (err) {
-                loader.innerHTML = "<span style='color:red'>에러: " + err.message + "</span>";
+                loader.innerText = "에러: " + err.message;
             }
         }
-
-        loadPDF();
+        renderPDF();
     </script>
 </body>
 </html>
