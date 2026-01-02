@@ -9,7 +9,7 @@
                maximum-scale=1,
                user-scalable=yes">
 
-<title>PDF Swipe Viewer</title>
+<title>PDF Book Swipe Viewer</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
@@ -19,23 +19,45 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #ffffff;
+  background: #eaeaea;
 }
 
 /* PDF 캔버스 */
 canvas {
   display: block;
   margin: auto;
+  background: white;
 }
 
-/* 슬라이드 효과 레이어 */
-#slideEffect {
+/* 책 넘김 효과 레이어 */
+#bookEffect {
   position: fixed;
-  inset: 0;
-  background: #ffffff;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    to left,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.05)
+  );
+  transform-origin: right center;
+  transform: perspective(1200px) rotateY(0deg);
   opacity: 0;
   pointer-events: none;
   z-index: 10;
+}
+
+/* 왼쪽 넘김 */
+#bookEffect.left {
+  left: 0;
+  right: auto;
+  transform-origin: left center;
+  background: linear-gradient(
+    to right,
+    rgba(0,0,0,0.35),
+    rgba(0,0,0,0.05)
+  );
 }
 
 /* 페이지 번호 */
@@ -58,11 +80,11 @@ canvas {
 
 <canvas id="pdf"></canvas>
 
-<div id="slideEffect"></div>
+<div id="bookEffect"></div>
 <div id="pageIndicator">1 / 1</div>
 
 <script>
-/* ================= PDF.js 설정 ================= */
+/* ================= PDF 설정 ================= */
 const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 
 let pdfDoc = null;
@@ -70,7 +92,7 @@ let pageNum = 1;
 
 const canvas = document.getElementById('pdf');
 const ctx = canvas.getContext('2d');
-const effect = document.getElementById('slideEffect');
+const effect = document.getElementById('bookEffect');
 const indicator = document.getElementById('pageIndicator');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -83,7 +105,7 @@ pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   renderPage();
 });
 
-/* ================= PDF 렌더 ================= */
+/* ================= 렌더 ================= */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
@@ -108,33 +130,39 @@ function updateIndicator() {
   indicator.textContent = `${pageNum} / ${pdfDoc.numPages}`;
 }
 
-/* ================= 슬라이드 효과 ================= */
-function slideEffect(direction, callback) {
+/* ================= 책 넘김 효과 ================= */
+function bookFlip(direction, callback) {
+  effect.className = '';
   effect.style.transition = 'none';
-  effect.style.opacity = '0.3';
-  effect.style.transform =
-    direction === 'left'
-      ? 'translateX(100%)'
-      : 'translateX(-100%)';
+  effect.style.opacity = '1';
+
+  if (direction === 'left') {
+    effect.classList.add('left');
+    effect.style.transform = 'perspective(1200px) rotateY(0deg)';
+  } else {
+    effect.style.transform = 'perspective(1200px) rotateY(0deg)';
+  }
 
   effect.offsetHeight; // reflow
 
-  effect.style.transition =
-    'transform 0.25s ease-out, opacity 0.25s ease-out';
-  effect.style.transform = 'translateX(0)';
-  effect.style.opacity = '0';
+  effect.style.transition = 'transform 0.35s ease-in, opacity 0.35s';
+
+  effect.style.transform =
+    direction === 'left'
+      ? 'perspective(1200px) rotateY(-110deg)'
+      : 'perspective(1200px) rotateY(110deg)';
 
   setTimeout(() => {
-    effect.style.transition = 'none';
     effect.style.opacity = '0';
-    callback && callback();   // ⭐ 애니메이션 끝난 뒤 실행
-  }, 260);
+    effect.style.transform = 'rotateY(0deg)';
+    callback && callback();
+  }, 360);
 }
 
 /* ================= 페이지 이동 ================= */
 function nextPage() {
   if (pageNum < pdfDoc.numPages) {
-    slideEffect('left', () => {
+    bookFlip('right', () => {
       pageNum++;
       updateIndicator();
       renderPage();
@@ -144,7 +172,7 @@ function nextPage() {
 
 function prevPage() {
   if (pageNum > 1) {
-    slideEffect('right', () => {
+    bookFlip('left', () => {
       pageNum--;
       updateIndicator();
       renderPage();
@@ -170,10 +198,8 @@ document.addEventListener('touchend', e => {
   }
 }, { passive: false });
 
-/* ================= 회전 대응 ================= */
 window.addEventListener('resize', renderPage);
 </script>
 
 </body>
 </html>
-
