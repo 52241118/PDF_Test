@@ -1,205 +1,112 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-
-<meta name="viewport"
-      content="width=device-width,
-               initial-scale=1,
-               maximum-scale=1,
-               user-scalable=yes">
-
-<title>PDF Book Swipe Viewer</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-
-<style>
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
-  background: #eaeaea;
-}
-
-/* PDF 캔버스 */
-canvas {
-  display: block;
-  margin: auto;
-  background: white;
-}
-
-/* 책 넘김 효과 레이어 */
-#bookEffect {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    to left,
-    rgba(0,0,0,0.35),
-    rgba(0,0,0,0.05)
-  );
-  transform-origin: right center;
-  transform: perspective(1200px) rotateY(0deg);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* 왼쪽 넘김 */
-#bookEffect.left {
-  left: 0;
-  right: auto;
-  transform-origin: left center;
-  background: linear-gradient(
-    to right,
-    rgba(0,0,0,0.35),
-    rgba(0,0,0,0.05)
-  );
-}
-
-/* 페이지 번호 */
-#pageIndicator {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  padding: 6px 10px;
-  font-size: 13px;
-  color: #fff;
-  background: rgba(0,0,0,0.55);
-  border-radius: 12px;
-  z-index: 20;
-  user-select: none;
-}
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My PDF Flipbook</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* 책의 그림자 및 스타일 */
+        .stf__wrapper {
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        /* 로딩 메시지 */
+        #loader {
+            color: white;
+            font-family: sans-serif;
+            font-size: 1.2rem;
+        }
+    </style>
 </head>
-
 <body>
 
-<canvas id="pdf"></canvas>
+    <div id="loader">PDF를 불러오는 중...</div>
+    <div id="book"></div>
 
-<div id="bookEffect"></div>
-<div id="pageIndicator">1 / 1</div>
+    <script>
+        // ==========================================
+        // [설정] 여기에 PDF 파일명을 입력하세요
+        // 같은 저장소에 있는 파일이어야 합니다.
+        var pdfUrl = 'a.pdf'; 
+        // ==========================================
 
-<script>
-/* ================= PDF 설정 ================= */
-const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
+        // PDF.js 워커 설정
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-let pdfDoc = null;
-let pageNum = 1;
+        const bookElement = document.getElementById('book');
+        const loader = document.getElementById('loader');
 
-const canvas = document.getElementById('pdf');
-const ctx = canvas.getContext('2d');
-const effect = document.getElementById('bookEffect');
-const indicator = document.getElementById('pageIndicator');
+        // 모바일인지 확인 (화면 크기에 따라 책 크기 조절)
+        const isMobile = window.innerWidth < 768;
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        // PageFlip 초기화 설정
+        const pageFlip = new St.PageFlip(bookElement, {
+            width: isMobile ? window.innerWidth * 0.9 : 550, // 페이지 너비
+            height: isMobile ? window.innerHeight * 0.8 : 700, // 페이지 높이
+            size: isMobile ? 'fixed' : 'stretch',
+            minWidth: 300,
+            maxWidth: 1000,
+            minHeight: 400,
+            maxHeight: 1200,
+            showCover: true,
+            mobileScrollSupport: false // 모바일에서 터치로 넘기기 위해 스크롤 비활성
+        });
 
-/* ================= PDF 로드 ================= */
-pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
-  pdfDoc = pdf;
-  updateIndicator();
-  renderPage();
-});
+        // PDF 로드 및 렌더링 함수
+        pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
+            const numPages = pdf.numPages;
+            const pages = [];
 
-/* ================= 렌더 ================= */
-function renderPage() {
-  pdfDoc.getPage(pageNum).then(page => {
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdf.getPage(i);
+                
+                // 캔버스 생성
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                
+                // 고해상도 처리를 위해 뷰포트 스케일 조정
+                const viewport = page.getViewport({ scale: 2 }); 
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
 
-    const base = page.getViewport({ scale: 1 });
-    const scale = Math.min(
-      window.innerWidth / base.width,
-      window.innerHeight / base.height
-    );
+                // 캔버스 스타일 (CSS 100% 맞춤)
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                
+                // 렌더링
+                await page.render({
+                    canvasContext: context,
+                    viewport: viewport
+                }).promise;
 
-    const viewport = page.getViewport({ scale });
+                // 페이지 래퍼 div 생성
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'my-page';
+                pageDiv.style.backgroundColor = 'white'; // 배경 흰색
+                pageDiv.appendChild(canvas);
+                
+                pages.push(pageDiv);
+            }
 
-    canvas.width  = viewport.width;
-    canvas.height = viewport.height;
+            // 로더 숨기고 책 생성
+            loader.style.display = 'none';
+            pageFlip.loadFromHTML(pages);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    page.render({ canvasContext: ctx, viewport });
-  });
-}
+        }).catch(err => {
+            loader.innerHTML = "에러 발생: " + err.message;
+            console.error(err);
+        });
 
-/* ================= 페이지 번호 ================= */
-function updateIndicator() {
-  indicator.textContent = `${pageNum} / ${pdfDoc.numPages}`;
-}
-
-/* ================= 책 넘김 효과 ================= */
-function bookFlip(direction, callback) {
-  effect.className = '';
-  effect.style.transition = 'none';
-  effect.style.opacity = '1';
-
-  if (direction === 'left') {
-    effect.classList.add('left');
-    effect.style.transform = 'perspective(1200px) rotateY(0deg)';
-  } else {
-    effect.style.transform = 'perspective(1200px) rotateY(0deg)';
-  }
-
-  effect.offsetHeight; // reflow
-
-  effect.style.transition = 'transform 0.35s ease-in, opacity 0.35s';
-
-  effect.style.transform =
-    direction === 'left'
-      ? 'perspective(1200px) rotateY(-110deg)'
-      : 'perspective(1200px) rotateY(110deg)';
-
-  setTimeout(() => {
-    effect.style.opacity = '0';
-    effect.style.transform = 'rotateY(0deg)';
-    callback && callback();
-  }, 360);
-}
-
-/* ================= 페이지 이동 ================= */
-function nextPage() {
-  if (pageNum < pdfDoc.numPages) {
-    bookFlip('right', () => {
-      pageNum++;
-      updateIndicator();
-      renderPage();
-    });
-  }
-}
-
-function prevPage() {
-  if (pageNum > 1) {
-    bookFlip('left', () => {
-      pageNum--;
-      updateIndicator();
-      renderPage();
-    });
-  }
-}
-
-/* ================= 스와이프 ================= */
-let startX = 0;
-let startY = 0;
-
-document.addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-  startY = e.touches[0].clientY;
-}, { passive: false });
-
-document.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - startX;
-  const dy = e.changedTouches[0].clientY - startY;
-
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-    dx < 0 ? nextPage() : prevPage();
-  }
-}, { passive: false });
-
-window.addEventListener('resize', renderPage);
-</script>
-
+    </script>
 </body>
 </html>
