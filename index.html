@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>PDF Viewer (Zoom & Ratio)</title>
+    <title>PDF Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
@@ -12,15 +12,13 @@
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            background-color: #525659; /* 눈이 편안한 짙은 회색 배경 */
-            /* 스크롤은 허용하되, 기본적으로는 넘김 효과에 집중 */
+            /* 1. 배경 흰색으로 변경 */
+            background-color: #ffffff; 
         }
         
         #book {
-            /* 책을 화면 중앙에 배치 */
             margin: 0 auto;
-            /* 높이를 화면에 맞춤 (비율 유지) */
-            height: 100vh; 
+            height: 100vh;
         }
 
         #loader {
@@ -28,16 +26,34 @@
             top: 50%; left: 0; right: 0;
             transform: translateY(-50%);
             text-align: center;
-            color: white;
+            color: #333; /* 배경이 흰색이라 글자는 검은색으로 */
             font-size: 1.2rem;
             z-index: 100;
+        }
+
+        /* 2. 페이지 번호 스타일 추가 */
+        #page-count {
+            position: fixed;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #555;
+            font-size: 14px;
+            font-family: sans-serif;
+            background-color: rgba(255, 255, 255, 0.8); /* 반투명 배경 */
+            padding: 5px 0;
+            z-index: 200;
+            pointer-events: none; /* 터치 방해 안 하도록 설정 */
         }
     </style>
 </head>
 <body>
 
-    <div id="loader">고해상도 문서 로딩 중...</div>
+    <div id="loader">문서를 불러오는 중...</div>
     <div id="book"></div>
+    
+    <div id="page-count"></div>
 
     <script>
         // ==========================================
@@ -48,68 +64,55 @@
         
         const loader = document.getElementById('loader');
         const bookElement = document.getElementById('book');
+        const pageCountElement = document.getElementById('page-count');
 
         async function loadBook() {
             try {
-                // 1. PDF 먼저 로드하여 비율 계산
                 const loadingTask = pdfjsLib.getDocument(pdfUrl);
                 const pdf = await loadingTask.promise;
                 
-                // 첫 페이지를 기준으로 비율(Aspect Ratio) 확인
+                // 전체 페이지 수 저장
+                const totalPages = pdf.numPages;
+
+                // 비율 계산 로직 (기존 유지)
                 const firstPage = await pdf.getPage(1);
                 const viewport = firstPage.getViewport({ scale: 1 });
                 const ratio = viewport.width / viewport.height;
-
-                // 화면 크기에 맞춰 책 크기 최적화 (비율 유지)
                 const screenH = window.innerHeight;
                 const screenW = window.innerWidth;
                 
-                // 높이를 기준으로 너비 자동 계산 (혹은 그 반대)
                 let bookHeight = screenH;
                 let bookWidth = bookHeight * ratio;
 
-                // 만약 계산된 너비가 화면보다 크다면, 너비 기준으로 높이를 다시 맞춤
                 if (bookWidth > screenW) {
                     bookWidth = screenW;
                     bookHeight = bookWidth / ratio;
                 }
 
-                // 2. PageFlip 초기화 (계산된 크기 적용)
                 const pageFlip = new St.PageFlip(bookElement, {
-                    width: bookWidth,   // 비율에 맞는 너비
-                    height: bookHeight, // 비율에 맞는 높이
-                    
-                    size: 'fixed', // stretch 대신 fixed를 써야 비율이 안 깨짐
-                    
+                    width: bookWidth,
+                    height: bookHeight,
+                    size: 'fixed',
                     showCover: true,
                     usePortrait: true,
-                    mobileScrollSupport: true, // 모바일 스크롤/줌 간섭 허용
+                    mobileScrollSupport: true,
                     flippingTime: 800
                 });
 
                 const pages = [];
-                // 3. 페이지 렌더링
-                for (let i = 1; i <= pdf.numPages; i++) {
+                for (let i = 1; i <= totalPages; i++) {
                     const page = await pdf.getPage(i);
-                    
-                    // 확대했을 때 깨지지 않도록 3배 고해상도로 그림
-                    const hdScale = 3.0; 
-                    const hdViewport = page.getViewport({ scale: hdScale });
+                    // 고해상도 유지 (3배)
+                    const hdViewport = page.getViewport({ scale: 3.0 });
 
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    
                     canvas.width = hdViewport.width;
                     canvas.height = hdViewport.height;
-
-                    // 스타일은 책 크기에 맞춤 (100%)
                     canvas.style.width = '100%';
                     canvas.style.height = '100%';
                     
-                    await page.render({
-                        canvasContext: ctx,
-                        viewport: hdViewport
-                    }).promise;
+                    await page.render({ canvasContext: ctx, viewport: hdViewport }).promise;
 
                     const pageDiv = document.createElement('div');
                     pageDiv.style.display = 'flex';
@@ -117,16 +120,29 @@
                     pageDiv.style.alignItems = 'center';
                     pageDiv.style.backgroundColor = 'white';
                     
+                    // 그림자 효과 (흰 배경에서 종이 구분을 위해 약간 추가)
+                    pageDiv.style.boxShadow = "0 0 5px rgba(0,0,0,0.1)"; 
+                    
                     pageDiv.appendChild(canvas);
                     pages.push(pageDiv);
                 }
 
-                // 로딩 끝
                 loader.style.display = 'none';
                 pageFlip.loadFromHTML(pages);
 
+                // 3. 페이지 번호 초기화 및 업데이트 로직
+                // 초기값 설정
+                pageCountElement.innerText = "1 / " + totalPages;
+
+                // 페이지 넘길 때마다 번호 갱신
+                pageFlip.on('flip', (e) => {
+                    // e.data는 현재 페이지 인덱스 (0부터 시작하므로 +1)
+                    const currentPage = e.data + 1;
+                    pageCountElement.innerText = currentPage + " / " + totalPages;
+                });
+
             } catch (err) {
-                loader.innerHTML = "<span style='color:#ff6b6b'>에러: " + err.message + "</span>";
+                loader.innerHTML = "<span style='color:red'>에러: " + err.message + "</span>";
             }
         }
 
