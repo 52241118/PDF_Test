@@ -3,12 +3,11 @@
 <head>
 <meta charset="utf-8">
 
-<!-- ⭐ 확대/축소 완전 차단 (핵심) -->
 <meta name="viewport"
       content="width=device-width,
                initial-scale=1,
                maximum-scale=1,
-               user-scalable=no">
+               user-scalable=yes">
 
 <title>PDF Swipe Viewer</title>
 
@@ -23,9 +22,20 @@ html, body {
   background: #ffffff;
 }
 
+/* PDF 캔버스 */
 canvas {
   display: block;
   margin: auto;
+}
+
+/* 슬라이드 효과 레이어 */
+#slideEffect {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
 }
 </style>
 </head>
@@ -33,14 +43,13 @@ canvas {
 <body>
 
 <canvas id="pdf"></canvas>
+<div id="slideEffect"></div>
 
 <script>
 /* =====================================================
-   1. 핀치 줌 / 제스처 완전 차단 (성공한 테스트와 동일)
+   1. 제스처 차단 (핀치 허용 상태 유지)
    ===================================================== */
-document.addEventListener('gesturestart', e => e.preventDefault());
-document.addEventListener('gesturechange', e => e.preventDefault());
-document.addEventListener('gestureend', e => e.preventDefault());
+// gesture 이벤트는 건드리지 않음 → 확대 유지
 
 /* =====================================================
    2. PDF.js 설정
@@ -52,6 +61,7 @@ let pageNum = 1;
 
 const canvas = document.getElementById('pdf');
 const ctx = canvas.getContext('2d');
+const effect = document.getElementById('slideEffect');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
@@ -65,7 +75,7 @@ pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
 });
 
 /* =====================================================
-   4. PDF 렌더 (안 잘림 / 흰 배경)
+   4. PDF 렌더 (안 잘림)
    ===================================================== */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
@@ -92,7 +102,53 @@ function renderPage() {
 }
 
 /* =====================================================
-   5. 스와이프 (성공한 테스트 방식 그대로)
+   5. 슬라이드 효과
+   ===================================================== */
+function slideEffect(direction) {
+  effect.style.transition = 'none';
+  effect.style.opacity = '0.25';
+
+  effect.style.transform =
+    direction === 'left'
+      ? 'translateX(100%)'
+      : 'translateX(-100%)';
+
+  // reflow
+  effect.offsetHeight;
+
+  effect.style.transition =
+    'transform 0.25s ease-out, opacity 0.25s ease-out';
+
+  effect.style.transform = 'translateX(0)';
+  effect.style.opacity = '0';
+
+  setTimeout(() => {
+    effect.style.transition = 'none';
+    effect.style.opacity = '0';
+  }, 260);
+}
+
+/* =====================================================
+   6. 페이지 이동
+   ===================================================== */
+function nextPage() {
+  if (pageNum < pdfDoc.numPages) {
+    slideEffect('left');
+    pageNum++;
+    renderPage();
+  }
+}
+
+function prevPage() {
+  if (pageNum > 1) {
+    slideEffect('right');
+    pageNum--;
+    renderPage();
+  }
+}
+
+/* =====================================================
+   7. 스와이프 (성공한 방식 그대로)
    ===================================================== */
 let startX = 0;
 let startY = 0;
@@ -107,19 +163,12 @@ document.addEventListener('touchend', e => {
   const dy = e.changedTouches[0].clientY - startY;
 
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-    if (dx < 0 && pageNum < pdfDoc.numPages) {
-      pageNum++;
-      renderPage();
-    }
-    if (dx > 0 && pageNum > 1) {
-      pageNum--;
-      renderPage();
-    }
+    dx < 0 ? nextPage() : prevPage();
   }
 }, { passive: false });
 
 /* =====================================================
-   6. 화면 회전 대응
+   8. 회전 대응
    ===================================================== */
 window.addEventListener('resize', renderPage);
 </script>
