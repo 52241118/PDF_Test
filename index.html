@@ -3,74 +3,74 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PDF Flipbook Viewer</title>
+    <title>PDF Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
     
     <style>
-        /* CSS 수정: 여백 제거 및 전체 화면 사용 */
-        html, body {
+        * { box-sizing: border-box; }
+        body, html {
             margin: 0;
             padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #222; /* 배경색을 조금 더 진하게 */
-            overflow: hidden; /* 스크롤바 숨김 */
+            width: 100vw;
+            height: 100vh;
+            background-color: #1a1a1a; /* 아주 어두운 회색 */
+            overflow: hidden; /* 스크롤 원천 차단 */
         }
         
-        /* 책 컨테이너를 화면에 꽉 채움 */
+        /* 책이 들어갈 컨테이너 */
         #book {
             width: 100%;
             height: 100%;
         }
-
-        /* 로딩 메시지 중앙 정렬 */
+        
+        /* 로딩 메시지 */
         #loader {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
-            font-family: sans-serif;
+            color: #fff;
             font-size: 1.2rem;
-            z-index: 10;
+            text-align: center;
         }
     </style>
 </head>
 <body>
 
-    <div id="loader">매뉴얼을 불러오는 중...</div>
+    <div id="loader">로딩중...</div>
     <div id="book"></div>
 
     <script>
         // ==========================================
-        // [설정] PDF 파일명 확인
-        var pdfUrl = 'a.pdf'; 
+        var pdfUrl = 'a.pdf'; // 파일명 확인!
         // ==========================================
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        
+        // 1. 현재 화면 크기 구하기
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
+
         const bookElement = document.getElementById('book');
         const loader = document.getElementById('loader');
 
-        // PageFlip 설정 (핵심 수정 부분)
+        // 2. PageFlip 설정 (화면 크기 강제 주입)
         const pageFlip = new St.PageFlip(bookElement, {
-            // 크기 설정: 화면에 꽉 차게 자동 조절
-            size: 'stretch',
-            // 고정 width/height를 제거하여 컨테이너 크기를 따르게 함
-            minWidth: 300,
-            maxWidth: 3000, // 충분히 크게
-            minHeight: 400,
-            maxHeight: 3000, // 충분히 크게
+            width: winWidth,  // 화면 너비 그대로 사용
+            height: winHeight, // 화면 높이 그대로 사용
             
-            showCover: true, // 첫 페이지를 표지로
+            size: 'fixed', // stretch 대신 fixed로 고정하되 크기를 화면만큼 줌
             
-            // [수정] 넘김 효과 설정
-            flippingTime: 1000, // 넘기는 시간: 1초 (기본값 600ms보다 느리고 부드럽게)
+            // 모바일 최적화 설정
+            showCover: true,
+            mobileScrollSupport: false, // 터치 스크롤 끄기
+            usePortrait: true, // 한 페이지씩 보기
+            startPage: 0,
             
-            // 모바일 최적화
-            mobileScrollSupport: false, // 스크롤 대신 터치 넘김 사용
-            usePortrait: true // 모바일에서 단면 보기 강제 (화면 활용도 ↑)
+            // 넘김 효과 (부드럽게)
+            flippingTime: 1200, // 1.2초 동안 넘어감 (아주 부드러움)
+            maxShadowOpacity: 0.5 // 그림자 진하게
         });
 
         pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
@@ -79,24 +79,29 @@
 
             for (let i = 1; i <= numPages; i++) {
                 const page = await pdf.getPage(i);
+                
+                // 3. 고해상도 렌더링
+                const viewport = page.getViewport({ scale: 2 }); 
                 const canvas = document.createElement('canvas');
                 const context = canvas.getContext('2d');
                 
-                // 뷰포트 스케일 (해상도): 2~3 정도로 유지
-                const viewport = page.getViewport({ scale: 2.5 }); 
                 canvas.width = viewport.width;
                 canvas.height = viewport.height;
                 
-                // 캔버스를 컨테이너에 꽉 채우는 CSS
+                // CSS로 캔버스를 꽉 채움
                 canvas.style.width = '100%';
                 canvas.style.height = '100%';
-                canvas.style.objectFit = 'contain'; // 비율 유지하며 꽉 채우기
+                canvas.style.objectFit = 'contain'; // 비율 유지하며 최대 크기
 
                 await page.render({ context, viewport }).promise;
 
                 const pageDiv = document.createElement('div');
-                // 페이지 배경색 흰색 지정 (PDF 배경이 투명할 경우 대비)
-                pageDiv.style.backgroundColor = '#ffffff'; 
+                pageDiv.style.backgroundColor = 'transparent'; // 배경 투명
+                // flex로 이미지를 중앙 정렬 (비율 차이로 남는 여백 처리)
+                pageDiv.style.display = 'flex';
+                pageDiv.style.alignItems = 'center';
+                pageDiv.style.justifyContent = 'center';
+                
                 pageDiv.appendChild(canvas);
                 pages.push(pageDiv);
             }
@@ -105,7 +110,7 @@
             pageFlip.loadFromHTML(pages);
 
         }).catch(err => {
-            loader.innerHTML = "파일 로드 실패: " + err.message;
+            loader.innerHTML = "Error: " + err.message;
         });
 
     </script>
