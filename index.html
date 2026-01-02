@@ -37,23 +37,32 @@ canvas {
   pointer-events: none;
   z-index: 10;
 }
+
+/* 페이지 번호 */
+#pageIndicator {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(0,0,0,0.55);
+  border-radius: 12px;
+  z-index: 20;
+  user-select: none;
+}
 </style>
 </head>
 
 <body>
 
 <canvas id="pdf"></canvas>
+
 <div id="slideEffect"></div>
+<div id="pageIndicator">1 / 1</div>
 
 <script>
-/* =====================================================
-   1. 제스처 차단 (핀치 허용 상태 유지)
-   ===================================================== */
-// gesture 이벤트는 건드리지 않음 → 확대 유지
-
-/* =====================================================
-   2. PDF.js 설정
-   ===================================================== */
+/* ================= PDF.js 설정 ================= */
 const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 
 let pdfDoc = null;
@@ -62,26 +71,23 @@ let pageNum = 1;
 const canvas = document.getElementById('pdf');
 const ctx = canvas.getContext('2d');
 const effect = document.getElementById('slideEffect');
+const indicator = document.getElementById('pageIndicator');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-/* =====================================================
-   3. PDF 로드
-   ===================================================== */
+/* ================= PDF 로드 ================= */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
+  updateIndicator();
   renderPage();
 });
 
-/* =====================================================
-   4. PDF 렌더 (안 잘림)
-   ===================================================== */
+/* ================= PDF 렌더 ================= */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
     const base = page.getViewport({ scale: 1 });
-
     const scale = Math.min(
       window.innerWidth / base.width,
       window.innerHeight / base.height
@@ -93,63 +99,60 @@ function renderPage() {
     canvas.height = viewport.height;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    page.render({
-      canvasContext: ctx,
-      viewport: viewport
-    });
+    page.render({ canvasContext: ctx, viewport });
   });
 }
 
-/* =====================================================
-   5. 슬라이드 효과
-   ===================================================== */
-function slideEffect(direction) {
-  effect.style.transition = 'none';
-  effect.style.opacity = '10.25';
+/* ================= 페이지 번호 ================= */
+function updateIndicator() {
+  indicator.textContent = `${pageNum} / ${pdfDoc.numPages}`;
+}
 
+/* ================= 슬라이드 효과 ================= */
+function slideEffect(direction, callback) {
+  effect.style.transition = 'none';
+  effect.style.opacity = '0.3';
   effect.style.transform =
     direction === 'left'
       ? 'translateX(100%)'
       : 'translateX(-100%)';
 
-  // reflow
-  effect.offsetHeight;
+  effect.offsetHeight; // reflow
 
   effect.style.transition =
     'transform 0.25s ease-out, opacity 0.25s ease-out';
-
   effect.style.transform = 'translateX(0)';
   effect.style.opacity = '0';
 
   setTimeout(() => {
     effect.style.transition = 'none';
     effect.style.opacity = '0';
+    callback && callback();   // ⭐ 애니메이션 끝난 뒤 실행
   }, 260);
 }
 
-/* =====================================================
-   6. 페이지 이동
-   ===================================================== */
+/* ================= 페이지 이동 ================= */
 function nextPage() {
   if (pageNum < pdfDoc.numPages) {
-    slideEffect('left');
-    pageNum++;
-    renderPage();
+    slideEffect('left', () => {
+      pageNum++;
+      updateIndicator();
+      renderPage();
+    });
   }
 }
 
 function prevPage() {
   if (pageNum > 1) {
-    slideEffect('right');
-    pageNum--;
-    renderPage();
+    slideEffect('right', () => {
+      pageNum--;
+      updateIndicator();
+      renderPage();
+    });
   }
 }
 
-/* =====================================================
-   7. 스와이프 (성공한 방식 그대로)
-   ===================================================== */
+/* ================= 스와이프 ================= */
 let startX = 0;
 let startY = 0;
 
@@ -167,11 +170,10 @@ document.addEventListener('touchend', e => {
   }
 }, { passive: false });
 
-/* =====================================================
-   8. 회전 대응
-   ===================================================== */
+/* ================= 회전 대응 ================= */
 window.addEventListener('resize', renderPage);
 </script>
 
 </body>
 </html>
+
