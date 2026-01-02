@@ -1,178 +1,125 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PDF Full Viewer</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://unpkg.com/page-flip/dist/js/page-flip.browser.js"></script>
+    
+    <style>
+        /* 1. 배경을 아예 흰색으로 변경 */
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #ffffff; 
+            overflow: hidden;
+        }
+        
+        #book {
+            width: 100%; height: 100%;
+            /* 책이 로딩되기 전까지 숨김 */
+            visibility: hidden; 
+        }
 
-<meta name="viewport"
-      content="width=device-width,
-               initial-scale=1,
-               maximum-scale=1,
-               user-scalable=yes">
-
-<title>PDF Swipe Viewer</title>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-
-<style>
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-/* PDF 캔버스 */
-canvas {
-  display: block;
-  margin: auto;
-}
-
-/* 슬라이드 효과 레이어 */
-#slideEffect {
-  position: fixed;
-  inset: 0;
-  background: #ffffff;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* 페이지 번호 */
-#pageIndicator {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  padding: 6px 10px;
-  font-size: 13px;
-  color: #fff;
-  background: rgba(0,0,0,0.55);
-  border-radius: 12px;
-  z-index: 20;
-  user-select: none;
-}
-</style>
+        /* 로딩바 스타일 */
+        #loader {
+            position: absolute;
+            top: 45%; left: 0; right: 0;
+            text-align: center;
+            color: #333;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+    </style>
 </head>
-
 <body>
 
-<canvas id="pdf"></canvas>
+    <div id="loader">문서를 펼치는 중입니다...<br><span style="font-size:0.8rem; font-weight:normal;">(잠시만 기다려주세요)</span></div>
+    <div id="book"></div>
 
-<div id="slideEffect"></div>
-<div id="pageIndicator">1 / 1</div>
+    <script>
+        // ==========================================
+        // 파일명 정확히 입력 (대소문자 구별)
+        var pdfUrl = 'a.pdf'; 
+        // ==========================================
 
-<script>
-/* ================= PDF.js 설정 ================= */
-const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        
+        const loader = document.getElementById('loader');
+        const bookElement = document.getElementById('book');
 
-let pdfDoc = null;
-let pageNum = 1;
+        // 2. 화면 크기 강제 고정 (스마트폰 크기 구하기)
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
 
-const canvas = document.getElementById('pdf');
-const ctx = canvas.getContext('2d');
-const effect = document.getElementById('slideEffect');
-const indicator = document.getElementById('pageIndicator');
+        const pageFlip = new St.PageFlip(bookElement, {
+            // mode: portrait (모바일용 단면 보기)
+            width: screenW, 
+            height: screenH,
+            size: 'fixed', // 크기 고정
+            
+            showCover: true,
+            mobileScrollSupport: false,
+            usePortrait: true,
+            
+            flippingTime: 800 // 넘기는 속도
+        });
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        pdfjsLib.getDocument(pdfUrl).promise.then(async pdf => {
+            const numPages = pdf.numPages;
+            const pages = [];
 
-/* ================= PDF 로드 ================= */
-pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
-  pdfDoc = pdf;
-  updateIndicator();
-  renderPage();
-});
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdf.getPage(i);
+                
+                // 3. 캔버스 생성 및 크기 강제 지정
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
 
-/* ================= PDF 렌더 ================= */
-function renderPage() {
-  pdfDoc.getPage(pageNum).then(page => {
+                // 캔버스 자체의 픽셀 크기를 스마트폰 화면 크기와 일치시킴 (화질 선명)
+                canvas.width = screenW * 2; // 레티나 디스플레이 고려 2배
+                canvas.height = screenH * 2;
 
-    const base = page.getViewport({ scale: 1 });
-    const scale = Math.min(
-      window.innerWidth / base.width,
-      window.innerHeight / base.height
-    );
+                // PDF를 화면 비율에 맞춰 강제로 늘려서 그림 (빈 공간 없애기 위함)
+                // 원본 비율 무시하고 꽉 채웁니다.
+                const viewport = page.getViewport({ scale: 1 });
+                const scaleX = canvas.width / viewport.width;
+                const scaleY = canvas.height / viewport.height;
+                
+                // 가로/세로 중 더 많이 늘려야 하는 쪽으로 맞춰서 꽉 채우기 (Stretch)
+                const finalScale = { transform: [scaleX, 0, 0, scaleY, 0, 0] };
 
-    const viewport = page.getViewport({ scale });
+                await page.render({ 
+                    canvasContext: ctx, 
+                    viewport: viewport,
+                    transform: [scaleX, 0, 0, scaleY, 0, 0] 
+                }).promise;
 
-    canvas.width  = viewport.width;
-    canvas.height = viewport.height;
+                // 4. 페이지 DIV 생성
+                const pageDiv = document.createElement('div');
+                pageDiv.style.width = '100%';
+                pageDiv.style.height = '100%';
+                pageDiv.style.backgroundColor = 'white'; // 페이지 배경 흰색
+                
+                // CSS로 캔버스를 DIV에 맞춤
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                
+                pageDiv.appendChild(canvas);
+                pages.push(pageDiv);
+            }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    page.render({ canvasContext: ctx, viewport });
-  });
-}
+            // 로딩 완료
+            loader.style.display = 'none';
+            bookElement.style.visibility = 'visible'; // 책 보이게 처리
+            pageFlip.loadFromHTML(pages);
 
-/* ================= 페이지 번호 ================= */
-function updateIndicator() {
-  indicator.textContent = `${pageNum} / ${pdfDoc.numPages}`;
-}
+        }).catch(err => {
+            loader.innerHTML = "<span style='color:red'>에러 발생: " + err.message + "</span>";
+        });
 
-/* ================= 슬라이드 효과 ================= */
-function slideEffect(direction, callback) {
-  effect.style.transition = 'none';
-  effect.style.opacity = '0.3';
-  effect.style.transform =
-    direction === 'left'
-      ? 'translateX(100%)'
-      : 'translateX(-100%)';
-
-  effect.offsetHeight; // reflow
-
-  effect.style.transition =
-    'transform 0.25s ease-out, opacity 0.25s ease-out';
-  effect.style.transform = 'translateX(0)';
-  effect.style.opacity = '0';
-
-  setTimeout(() => {
-    effect.style.transition = 'none';
-    effect.style.opacity = '0';
-    callback && callback();   // ⭐ 애니메이션 끝난 뒤 실행
-  }, 260);
-}
-
-/* ================= 페이지 이동 ================= */
-function nextPage() {
-  if (pageNum < pdfDoc.numPages) {
-    slideEffect('left', () => {
-      pageNum++;
-      updateIndicator();
-      renderPage();
-    });
-  }
-}
-
-function prevPage() {
-  if (pageNum > 1) {
-    slideEffect('right', () => {
-      pageNum--;
-      updateIndicator();
-      renderPage();
-    });
-  }
-}
-
-/* ================= 스와이프 ================= */
-let startX = 0;
-let startY = 0;
-
-document.addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-  startY = e.touches[0].clientY;
-}, { passive: false });
-
-document.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - startX;
-  const dy = e.changedTouches[0].clientY - startY;
-
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-    dx < 0 ? nextPage() : prevPage();
-  }
-}, { passive: false });
-
-/* ================= 회전 대응 ================= */
-window.addEventListener('resize', renderPage);
-</script>
-
+    </script>
 </body>
 </html>
