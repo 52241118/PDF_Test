@@ -1,24 +1,90 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <title>초음파 앰프 설명서</title>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF 슬라이드</title>
+
+  <!-- PDF.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js"></script>
 
   <style>
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
-      height: 100%;
+      background: #000;
+      color: #fff;
+      text-align: center;
     }
-    iframe {
+    canvas {
+      display: block;
+      margin: auto;
+      max-width: 100vw;
+      max-height: 100vh;
+    }
+    .controls {
+      position: fixed;
+      bottom: 10px;
       width: 100%;
-      height: 100%;
-      border: none;
+    }
+    button {
+      font-size: 20px;
+      padding: 10px 20px;
+      margin: 0 10px;
     }
   </style>
 </head>
+
 <body>
-  <iframe src="Test.pdf"></iframe>
+  <canvas id="pdf"></canvas>
+
+  <div class="controls">
+    <button onclick="prev()">◀ 이전</button>
+    <span id="page"></span>
+    <button onclick="next()">다음 ▶</button>
+  </div>
+
+<script>
+  const url = 'Test.pdf';
+
+  let pdfDoc = null;
+  let pageNum = 1;
+  let canvas = document.getElementById('pdf');
+  let ctx = canvas.getContext('2d');
+
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+
+  pdfjsLib.getDocument(url).promise.then(pdf => {
+    pdfDoc = pdf;
+    render();
+  });
+
+  function render() {
+    pdfDoc.getPage(pageNum).then(page => {
+      const viewport = page.getViewport({ scale: 1.5 });
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      page.render({ canvasContext: ctx, viewport });
+      document.getElementById('page').textContent =
+        `${pageNum} / ${pdfDoc.numPages}`;
+    });
+  }
+
+  function next() {
+    if (pageNum < pdfDoc.numPages) {
+      pageNum++;
+      render();
+    }
+  }
+
+  function prev() {
+    if (pageNum > 1) {
+      pageNum--;
+      render();
+    }
+  }
+</script>
+
 </body>
 </html>
