@@ -12,8 +12,8 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    overflow: hidden;     /* 스크롤 완전 차단 */
-    background: #ffffff;  /* ⭐ 흰 배경 */
+    overflow: hidden;
+    background: #ffffff;   /* ✅ 흰 배경 */
   }
 
   #wrap {
@@ -24,7 +24,7 @@
   canvas {
     display: block;
     margin: auto;
-    touch-action: none;   /* 브라우저 기본 제스처 차단 */
+    touch-action: none;
   }
 </style>
 </head>
@@ -53,16 +53,18 @@ pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   renderPage();
 });
 
-/* 한 장만 렌더 (안 잘림) */
+/* ===== 핵심 로직 ===== */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
     const base = page.getViewport({ scale: 1 });
 
-    // ⭐ 안 잘림 기준 (Fit Inside)
+    /* ⭐ 위/아래 여백을 15% 덜 고려 */
+    const effectiveHeight = window.innerHeight * 0.85;
+
     const scale = Math.min(
       window.innerWidth / base.width,
-      window.innerHeight / base.height
+      effectiveHeight / base.height
     );
 
     const viewport = page.getViewport({ scale });
@@ -92,9 +94,8 @@ function prevPage() {
   }
 }
 
-/* ===== 좌우 스와이프 ===== */
-let startX = 0;
-let startY = 0;
+/* 스와이프 */
+let startX = 0, startY = 0;
 
 canvas.addEventListener('touchstart', e => {
   startX = e.touches[0].clientX;
@@ -106,8 +107,7 @@ canvas.addEventListener('touchend', e => {
   const dy = e.changedTouches[0].clientY - startY;
 
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-    if (dx < 0) nextPage();   // 왼쪽 → 다음
-    else prevPage();          // 오른쪽 → 이전
+    dx < 0 ? nextPage() : prevPage();
   }
 });
 
