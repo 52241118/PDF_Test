@@ -2,33 +2,29 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport"
-      content="width=device-width,initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>PDF Viewer</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <style>
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden;
-    background: #ffffff;
-    overscroll-behavior: none;
-  }
-
-  #wrap {
-    width: 100%;
-    height: 100%;
-    touch-action: pan-y;
-  }
-
-  canvas {
-    display: block;
-    margin: auto;
-    pointer-events: none;
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+  overscroll-behavior: none;
+}
+#wrap {
+  width: 100%;
+  height: 100%;
+}
+canvas {
+  display: block;
+  margin: auto;
+  pointer-events: none;
+}
 </style>
 </head>
 
@@ -43,109 +39,82 @@ const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 
 let pdfDoc = null;
 let pageNum = 1;
-let warmedUp = false;   // ⭐ 첫 렌더 예열 플래그
 
-const wrap = document.getElementById('wrap');
 const canvas = document.getElementById('pdf');
 const ctx = canvas.getContext('2d');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-/* PDF 로드 */
+/* ===============================
+   PDF 로드
+   =============================== */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
-
-  // ⭐ 첫 페이지 예열 렌더 (화면에 안 보여도 됨)
-  warmUpFirstPage();
+  renderPage();
 });
 
-/* ===== 첫 페이지 예열 ===== */
-function warmUpFirstPage() {
-  pdfDoc.getPage(1).then(page => {
-
-    // 내부 rotate 값 강제 확정
-    page.getViewport({ scale: 1 });
-
-    // 다음 프레임에 실제 렌더
-    requestAnimationFrame(() => {
-      warmedUp = true;
-      renderPage();
-    });
-  });
-}
-
-/* ===== 실제 렌더 ===== */
+/* ===============================
+   렌더 (DPR 안정화 핵심)
+   =============================== */
 function renderPage() {
-  if (!pdfDoc || !warmedUp) return;
-
   pdfDoc.getPage(pageNum).then(page => {
 
-    ctx.setTransform(1,0,0,1,0,0);
+    const dpr = window.devicePixelRatio || 1;
 
-    const base = page.getViewport({
-      scale: 1,
-      rotation: page.rotate   // ⭐ 내부 회전값 사용
-    });
+    const baseViewport = page.getViewport({ scale: 1 });
 
     const effectiveHeight = window.innerHeight * 0.85;
     const scale = Math.min(
-      window.innerWidth / base.width,
-      effectiveHeight / base.height
+      window.innerWidth / baseViewport.width,
+      effectiveHeight / baseViewport.height
     );
 
-    const viewport = page.getViewport({
-      scale: scale,
-      rotation: page.rotate
+    const viewport = page.getViewport({ scale });
+
+    // 🔑 캔버스 실제 해상도
+    canvas.width  = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
+
+    // 🔑 화면에 보이는 크기
+    canvas.style.width  = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+
+    // 🔑 좌표계 완전 고정 (뒤집힘 방지)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    page.render({
+      canvasContext: ctx,
+      viewport: viewport
     });
-
-    canvas.width  = viewport.width;
-    canvas.height = viewport.height;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    page.render({ canvasContext: ctx, viewport });
   });
 }
 
-/* 페이지 이동 */
-function nextPage() {
-  if (pageNum < pdfDoc.numPages) {
-    pageNum++;
-    renderPage();
-  }
-}
-function prevPage() {
-  if (pageNum > 1) {
-    pageNum--;
-    renderPage();
-  }
-}
+/* ===============================
+   스와이프 (이미 정상이라 유지)
+   =============================== */
+let startX = 0;
+let startY = 0;
 
-/* ===== Pointer 기반 스와이프 ===== */
-let startX = 0, startY = 0;
-
-wrap.addEventListener('pointerdown', e => {
+document.addEventListener('pointerdown', e => {
   startX = e.clientX;
   startY = e.clientY;
 });
 
-wrap.addEventListener('pointerup', e => {
+document.addEventListener('pointerup', e => {
   const dx = e.clientX - startX;
   const dy = e.clientY - startY;
-
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-    dx < 0 ? nextPage() : prevPage();
+    if (dx < 0 && pageNum < pdfDoc.numPages) pageNum++;
+    if (dx > 0 && pageNum > 1) pageNum--;
+    renderPage();
   }
 });
 
-/* 회전/주소창 대응 */
-window.addEventListener('resize', () => {
-  requestAnimationFrame(renderPage);
-});
+window.addEventListener('resize', renderPage);
 window.visualViewport &&
-  window.visualViewport.addEventListener('resize', () => {
-    requestAnimationFrame(renderPage);
-  });
+  window.visualViewport.addEventListener('resize', renderPage);
 </script>
 
 </body>
