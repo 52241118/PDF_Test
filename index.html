@@ -2,45 +2,38 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>PDF Swipe Viewer</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <style>
-/* ===== 기본 레이아웃 ===== */
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
   overflow: hidden;
   background: #ffffff;
-  overscroll-behavior: none;
 }
 
 #wrap {
   position: relative;
   width: 100%;
   height: 100%;
+  touch-action: none;   /* ⭐ 스와이프 핵심 */
 }
 
-/* ===== PDF 캔버스 ===== */
 canvas {
   display: block;
   margin: auto;
-  pointer-events: none; /* 스와이프는 wrap에서 */
+  pointer-events: none; /* 캔버스는 터치 무시 */
 }
 
-/* ===== 슬라이드 효과 레이어 ===== */
+/* 슬라이드 효과 */
 #slideEffect {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   background: #ffffff;
-  transform: translateX(0);
   opacity: 0;
   pointer-events: none;
   z-index: 10;
@@ -53,13 +46,10 @@ canvas {
 <div id="wrap">
   <canvas id="pdf"></canvas>
 </div>
-
 <div id="slideEffect"></div>
 
 <script>
-/* =========================
-   설정
-   ========================= */
+/* ================= 설정 ================= */
 const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 
 let pdfDoc = null;
@@ -73,20 +63,14 @@ const effect = document.getElementById('slideEffect');
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-/* =========================
-   PDF 로드
-   ========================= */
+/* ================= PDF 로드 ================= */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
   renderPage();
 });
 
-/* =========================
-   PDF 렌더 (안 잘림 + 흰 배경)
-   ========================= */
+/* ================= PDF 렌더 ================= */
 function renderPage() {
-  if (!pdfDoc) return;
-
   pdfDoc.getPage(pageNum).then(page => {
 
     const dpr = window.devicePixelRatio || 1;
@@ -100,34 +84,26 @@ function renderPage() {
 
     const viewport = page.getViewport({ scale });
 
-    canvas.width  = Math.floor(viewport.width * dpr);
-    canvas.height = Math.floor(viewport.height * dpr);
+    canvas.width  = viewport.width * dpr;
+    canvas.height = viewport.height * dpr;
     canvas.style.width  = viewport.width + 'px';
     canvas.style.height = viewport.height + 'px';
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    page.render({
-      canvasContext: ctx,
-      viewport: viewport
-    });
+    page.render({ canvasContext: ctx, viewport });
   });
 }
 
-/* =========================
-   슬라이드 효과
-   ========================= */
-function slideEffect(direction) {
+/* ================= 슬라이드 효과 ================= */
+function slideEffect(dir) {
   effect.style.transition = 'none';
   effect.style.opacity = '0.25';
-
   effect.style.transform =
-    direction === 'left'
-      ? 'translateX(100%)'
-      : 'translateX(-100%)';
+    dir === 'left' ? 'translateX(100%)' : 'translateX(-100%)';
 
-  effect.offsetHeight; // reflow
+  effect.offsetHeight;
 
   effect.style.transition =
     'transform 0.25s ease-out, opacity 0.25s ease-out';
@@ -140,9 +116,7 @@ function slideEffect(direction) {
   }, 260);
 }
 
-/* =========================
-   페이지 이동
-   ========================= */
+/* ================= 페이지 이동 ================= */
 function nextPage() {
   if (pageNum < pdfDoc.numPages) {
     slideEffect('left');
@@ -150,7 +124,6 @@ function nextPage() {
     renderPage();
   }
 }
-
 function prevPage() {
   if (pageNum > 1) {
     slideEffect('right');
@@ -159,29 +132,25 @@ function prevPage() {
   }
 }
 
-/* =========================
-   스와이프 (Pointer Events)
-   ========================= */
+/* ================= 스와이프 (핵심) ================= */
 let startX = 0;
 let startY = 0;
 
-wrap.addEventListener('pointerdown', e => {
-  startX = e.clientX;
-  startY = e.clientY;
-});
+wrap.addEventListener('touchstart', e => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+}, { passive: true });
 
-wrap.addEventListener('pointerup', e => {
-  const dx = e.clientX - startX;
-  const dy = e.clientY - startY;
+wrap.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
 
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
     dx < 0 ? nextPage() : prevPage();
   }
 });
 
-/* =========================
-   회전 / 주소창 변화 대응
-   ========================= */
+/* ================= 리사이즈 ================= */
 window.addEventListener('resize', renderPage);
 window.visualViewport &&
   window.visualViewport.addEventListener('resize', renderPage);
