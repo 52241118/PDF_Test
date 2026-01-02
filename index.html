@@ -12,36 +12,55 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    overflow: hidden;   /* ⭐ 스크롤 차단 */
+    overflow: hidden;
     background: black;
   }
+
+  #wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
   canvas {
     display: block;
     margin: auto;
-    touch-action: none;
+    pointer-events: none;   /* ⭐⭐⭐ 핵심: 모바일 터치 차단 */
   }
+
   .ctrl {
     position: fixed;
     bottom: 12px;
+    left: 0;
     width: 100%;
     text-align: center;
+    z-index: 999;
   }
+
   button {
     font-size: 18px;
-    padding: 10px 22px;
-    margin: 0 10px;
+    padding: 12px 26px;
+    margin: 0 14px;
+    pointer-events: auto;   /* ⭐ 버튼 터치 허용 */
+  }
+
+  #info {
+    color: white;
+    font-size: 16px;
   }
 </style>
 </head>
 
 <body>
 
-<canvas id="pdf"></canvas>
+<div id="wrap">
+  <canvas id="pdf"></canvas>
 
-<div class="ctrl">
-  <button onclick="prev()">◀ 이전</button>
-  <span id="info"></span>
-  <button onclick="next()">다음 ▶</button>
+  <div class="ctrl">
+    <button onclick="prev()">◀ 이전</button>
+    <span id="info"></span>
+    <button onclick="next()">다음 ▶</button>
+  </div>
 </div>
 
 <script>
@@ -64,10 +83,10 @@ pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
-    const unscaled = page.getViewport({ scale: 1 });
+    const base = page.getViewport({ scale: 1 });
     const scale = Math.min(
-      window.innerWidth / unscaled.width,
-      window.innerHeight / unscaled.height
+      window.innerWidth / base.width,
+      window.innerHeight / base.height
     );
 
     const viewport = page.getViewport({ scale });
@@ -81,7 +100,7 @@ function renderPage() {
     });
 
     document.getElementById('info').textContent =
-      `${pageNum} / ${pdfDoc.numPages}`;
+      pageNum + ' / ' + pdfDoc.numPages;
   });
 }
 
@@ -91,6 +110,7 @@ function next() {
     renderPage();
   }
 }
+
 function prev() {
   if (pageNum > 1) {
     pageNum--;
