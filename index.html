@@ -2,16 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>PDF 슬라이드</title>
 
-  <!-- PDF.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js"></script>
+  <!-- PDF.js CDN (안정 버전) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
     body {
       margin: 0;
       background: #000;
+      overflow: hidden;
       color: #fff;
       text-align: center;
     }
@@ -25,66 +26,32 @@
       position: fixed;
       bottom: 10px;
       width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
     }
     button {
-      font-size: 20px;
-      padding: 10px 20px;
-      margin: 0 10px;
+      font-size: 18px;
+      padding: 10px 24px;
     }
   </style>
 </head>
 
 <body>
-  <canvas id="pdf"></canvas>
+  <canvas id="pdfCanvas"></canvas>
 
   <div class="controls">
     <button onclick="prev()">◀ 이전</button>
-    <span id="page"></span>
+    <span id="pageInfo"></span>
     <button onclick="next()">다음 ▶</button>
   </div>
 
 <script>
-  const url = 'Test.pdf';
+  const pdfUrl = 'Test.pdf';
 
   let pdfDoc = null;
   let pageNum = 1;
-  let canvas = document.getElementById('pdf');
-  let ctx = canvas.getContext('2d');
+  const canvas = document.getElementById('pdfCanvas');
+  const ctx = canvas.getContext('2d');
 
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
-
-  pdfjsLib.getDocument(url).promise.then(pdf => {
-    pdfDoc = pdf;
-    render();
-  });
-
-  function render() {
-    pdfDoc.getPage(pageNum).then(page => {
-      const viewport = page.getViewport({ scale: 1.5 });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      page.render({ canvasContext: ctx, viewport });
-      document.getElementById('page').textContent =
-        `${pageNum} / ${pdfDoc.numPages}`;
-    });
-  }
-
-  function next() {
-    if (pageNum < pdfDoc.numPages) {
-      pageNum++;
-      render();
-    }
-  }
-
-  function prev() {
-    if (pageNum > 1) {
-      pageNum--;
-      render();
-    }
-  }
-</script>
-
-</body>
-</html>
+  // 🔑 worker 명시 (모바일 필수)
