@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>Clean White Viewer</title>
+    <title>Smart Zoom Viewer</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     
@@ -11,7 +11,9 @@
         body, html {
             margin: 0; padding: 0;
             width: 100%; height: 100%;
-            background-color: #ffffff; /* 완전 흰색 배경 */
+            background-color: #ffffff;
+            /* 기본적으로 오버플로우 숨김 (컨테이너에서 제어) */
+            overflow: hidden; 
         }
 
         #container {
@@ -21,20 +23,28 @@
             overflow-x: auto;
             overflow-y: hidden;
             
-            /* 한 장씩 넘기기 */
+            /* [기본 상태] 한 장씩 딱딱 걸리게 설정 */
             scroll-snap-type: x mandatory; 
             
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
         }
 
+        /* [중요] 확대되었을 때 적용할 클래스 
+           자바스크립트가 확대를 감지하면 이 클래스를 container에 붙입니다.
+        */
+        #container.zoomed {
+            /* 스냅 기능 해제 -> 확대 시 자유롭게 이동 가능 */
+            scroll-snap-type: none !important; 
+            overflow-x: auto !important;
+            overflow-y: auto !important;
+        }
+
         .page {
             flex: 0 0 100vw; 
             height: 100vh;
-            
             scroll-snap-align: start;
-            /* 강제 브레이크 (한 장씩만 이동) */
-            scroll-snap-stop: always; 
+            scroll-snap-stop: always;
             
             display: flex;
             justify-content: center;
@@ -46,13 +56,8 @@
             max-width: 100%;
             max-height: 100%;
             object-fit: contain;
-            
-            /* [수정] 그림자 제거: 아주 깔끔하게 떨어짐 */
+            /* 그림자 없이 깔끔하게 */
             box-shadow: none; 
-            
-            /* (선택) 만약 문서 경계가 너무 안 보이면 아래 주석을 해제해서 
-               아주 얇은 회색 테두리만 살짝 넣으세요. */
-            /* border: 1px solid #eee; */
         }
 
         #loader {
@@ -69,7 +74,6 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            /* 페이지 번호 배경도 더 연하고 심플하게 */
             background: rgba(0,0,0,0.3);
             color: white;
             padding: 4px 12px;
@@ -97,6 +101,25 @@
         const loader = document.getElementById('loader');
         const pageNumDiv = document.getElementById('page-num');
 
+        // [핵심 기능] 줌 상태 감지하여 스냅 끄기/켜기
+        if (window.visualViewport) {
+            const viewport = window.visualViewport;
+            
+            function handleZoom() {
+                // scale이 1.0보다 크면(확대됨) -> 스냅 끄기
+                if (viewport.scale > 1.01) {
+                    container.classList.add('zoomed');
+                } else {
+                    // scale이 1.0이면(원래 크기) -> 스냅 켜기
+                    container.classList.remove('zoomed');
+                }
+            }
+
+            // 확대/축소 이벤트 리스너
+            viewport.addEventListener('resize', handleZoom);
+            viewport.addEventListener('scroll', handleZoom);
+        }
+
         async function renderPDF() {
             try {
                 const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
@@ -105,7 +128,7 @@
 
                 for (let i = 1; i <= total; i++) {
                     const page = await pdf.getPage(i);
-                    // 3배 화질
+                    // 확대해도 깨지지 않게 3배 고해상도
                     const viewport = page.getViewport({ scale: 3 });
 
                     const canvas = document.createElement('canvas');
@@ -128,10 +151,12 @@
 
                 loader.style.display = 'none';
 
-                // 페이지 번호 갱신
                 container.addEventListener('scroll', () => {
-                    const pageIndex = Math.round(container.scrollLeft / window.innerWidth) + 1;
-                    pageNumDiv.innerText = `${pageIndex} / ${total}`;
+                    // 확대 상태가 아닐 때만 페이지 번호 갱신 계산
+                    if (!container.classList.contains('zoomed')) {
+                        const pageIndex = Math.round(container.scrollLeft / window.innerWidth) + 1;
+                        pageNumDiv.innerText = `${pageIndex} / ${total}`;
+                    }
                 });
 
             } catch (err) {
