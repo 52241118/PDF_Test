@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>PDF Swipe Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Swipe Test</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
@@ -16,144 +16,83 @@ html, body {
   background: #ffffff;
 }
 
-#wrap {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  touch-action: none;   /* ⭐ 스와이프 핵심 */
-}
-
 canvas {
   display: block;
   margin: auto;
-  pointer-events: none; /* 캔버스는 터치 무시 */
-}
-
-/* 슬라이드 효과 */
-#slideEffect {
-  position: fixed;
-  inset: 0;
-  background: #ffffff;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 10;
 }
 </style>
 </head>
 
 <body>
 
-<div id="wrap">
-  <canvas id="pdf"></canvas>
-</div>
-<div id="slideEffect"></div>
+<canvas id="pdf"></canvas>
 
 <script>
-/* ================= 설정 ================= */
+/* ===== 설정 ===== */
 const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 
 let pdfDoc = null;
 let pageNum = 1;
 
-const wrap   = document.getElementById('wrap');
 const canvas = document.getElementById('pdf');
-const ctx    = canvas.getContext('2d');
-const effect = document.getElementById('slideEffect');
+const ctx = canvas.getContext('2d');
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-/* ================= PDF 로드 ================= */
+/* ===== PDF 로드 ===== */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
-  renderPage();
+  render();
 });
 
-/* ================= PDF 렌더 ================= */
-function renderPage() {
+/* ===== 렌더 ===== */
+function render() {
   pdfDoc.getPage(pageNum).then(page => {
 
-    const dpr = window.devicePixelRatio || 1;
     const base = page.getViewport({ scale: 1 });
-
-    const effectiveHeight = window.innerHeight * 0.85;
     const scale = Math.min(
       window.innerWidth / base.width,
-      effectiveHeight / base.height
+      window.innerHeight / base.height
     );
 
     const viewport = page.getViewport({ scale });
 
-    canvas.width  = viewport.width * dpr;
-    canvas.height = viewport.height * dpr;
-    canvas.style.width  = viewport.width + 'px';
-    canvas.style.height = viewport.height + 'px';
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     page.render({ canvasContext: ctx, viewport });
   });
 }
 
-/* ================= 슬라이드 효과 ================= */
-function slideEffect(dir) {
-  effect.style.transition = 'none';
-  effect.style.opacity = '0.25';
-  effect.style.transform =
-    dir === 'left' ? 'translateX(100%)' : 'translateX(-100%)';
+/* ===== 스와이프 (가장 단순 / 가장 안정) ===== */
+let sx = 0;
+let sy = 0;
 
-  effect.offsetHeight;
+document.addEventListener('touchstart', e => {
+  sx = e.touches[0].clientX;
+  sy = e.touches[0].clientY;
+}, false);
 
-  effect.style.transition =
-    'transform 0.25s ease-out, opacity 0.25s ease-out';
-  effect.style.transform = 'translateX(0)';
-  effect.style.opacity = '0';
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - sx;
+  const dy = e.changedTouches[0].clientY - sy;
 
-  setTimeout(() => {
-    effect.style.transition = 'none';
-    effect.style.opacity = '0';
-  }, 260);
-}
-
-/* ================= 페이지 이동 ================= */
-function nextPage() {
-  if (pageNum < pdfDoc.numPages) {
-    slideEffect('left');
-    pageNum++;
-    renderPage();
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+    if (dx < 0 && pageNum < pdfDoc.numPages) {
+      pageNum++;
+      render();
+    }
+    if (dx > 0 && pageNum > 1) {
+      pageNum--;
+      render();
+    }
   }
-}
-function prevPage() {
-  if (pageNum > 1) {
-    slideEffect('right');
-    pageNum--;
-    renderPage();
-  }
-}
+}, false);
 
-/* ================= 스와이프 (핵심) ================= */
-let startX = 0;
-let startY = 0;
-
-wrap.addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-  startY = e.touches[0].clientY;
-}, { passive: true });
-
-wrap.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - startX;
-  const dy = e.changedTouches[0].clientY - startY;
-
-  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-    dx < 0 ? nextPage() : prevPage();
-  }
-});
-
-/* ================= 리사이즈 ================= */
-window.addEventListener('resize', renderPage);
-window.visualViewport &&
-  window.visualViewport.addEventListener('resize', renderPage);
+/* ===== 회전 대응 ===== */
+window.addEventListener('resize', render);
 </script>
 
 </body>
