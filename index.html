@@ -12,7 +12,7 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    overflow: hidden;
+    overflow: hidden;        /* 스크롤 차단 */
     background: black;
   }
 
@@ -25,29 +25,11 @@
   canvas {
     display: block;
     margin: auto;
-    pointer-events: none;   /* ⭐⭐⭐ 핵심: 모바일 터치 차단 */
+    pointer-events: auto;    /* 스와이프 감지 */
+    touch-action: none;      /* 브라우저 기본 제스처 차단 */
   }
 
-  .ctrl {
-    position: fixed;
-    bottom: 12px;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    z-index: 999;
-  }
-
-  button {
-    font-size: 18px;
-    padding: 12px 26px;
-    margin: 0 14px;
-    pointer-events: auto;   /* ⭐ 버튼 터치 허용 */
-  }
-
-  #info {
-    color: white;
-    font-size: 16px;
-  }
+  /* 버튼 없음 */
 </style>
 </head>
 
@@ -55,12 +37,6 @@
 
 <div id="wrap">
   <canvas id="pdf"></canvas>
-
-  <div class="ctrl">
-    <button onclick="prev()">◀ 이전</button>
-    <span id="info"></span>
-    <button onclick="next()">다음 ▶</button>
-  </div>
 </div>
 
 <script>
@@ -75,11 +51,13 @@ const ctx = canvas.getContext('2d');
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+/* PDF 로드 */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
   renderPage();
 });
 
+/* 한 장 렌더 */
 function renderPage() {
   pdfDoc.getPage(pageNum).then(page => {
 
@@ -98,26 +76,45 @@ function renderPage() {
       canvasContext: ctx,
       viewport: viewport
     });
-
-    document.getElementById('info').textContent =
-      pageNum + ' / ' + pdfDoc.numPages;
   });
 }
 
-function next() {
+/* 페이지 이동 */
+function nextPage() {
   if (pageNum < pdfDoc.numPages) {
     pageNum++;
     renderPage();
   }
 }
 
-function prev() {
+function prevPage() {
   if (pageNum > 1) {
     pageNum--;
     renderPage();
   }
 }
 
+/* ===== 스와이프 처리 (핵심) ===== */
+let startX = 0;
+let startY = 0;
+
+canvas.addEventListener('touchstart', e => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+}, { passive: true });
+
+canvas.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
+
+  /* 좌우 스와이프만 인식 */
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+    if (dx < 0) nextPage();   // 왼쪽 → 다음
+    else prevPage();          // 오른쪽 → 이전
+  }
+});
+
+/* 화면 회전 대응 */
 window.addEventListener('resize', renderPage);
 </script>
 
