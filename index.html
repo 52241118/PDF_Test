@@ -13,21 +13,21 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    overflow: hidden;          /* ⭐ 스크롤 완전 차단 */
+    overflow: hidden;
     background: #ffffff;
-    touch-action: none;        /* ⭐ 브라우저 제스처 차단 */
+    overscroll-behavior: none;   /* ⭐ 브라우저 제스처 차단 */
   }
 
   #wrap {
     width: 100%;
     height: 100%;
-    touch-action: none;        /* ⭐ 필수 */
+    touch-action: pan-y;        /* ⭐ 좌우 제스처만 허용 */
   }
 
   canvas {
     display: block;
     margin: auto;
-    pointer-events: none;      /* ⭐ canvas는 터치 안 먹음 */
+    pointer-events: none;       /* 캔버스는 터치 안 먹음 */
   }
 </style>
 </head>
@@ -44,24 +44,31 @@ const PDF_URL = 'https://52241118.github.io/PDF_Test/a.pdf';
 let pdfDoc = null;
 let pageNum = 1;
 
+const wrap = document.getElementById('wrap');
 const canvas = document.getElementById('pdf');
 const ctx = canvas.getContext('2d');
 
-/* PDF.js worker */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
 /* PDF 로드 */
 pdfjsLib.getDocument(PDF_URL).promise.then(pdf => {
   pdfDoc = pdf;
-  renderPage();
+
+  // ⭐ 첫 렌더를 한 프레임 늦춤 (모바일 안정화 핵심)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(renderPage);
+  });
 });
 
 /* 렌더 */
 function renderPage() {
+  if (!pdfDoc) return;
+
   pdfDoc.getPage(pageNum).then(page => {
 
-    ctx.setTransform(1,0,0,1,0,0); // 안정화
+    ctx.setTransform(1,0,0,1,0,0);   // 좌표계 초기화
+
     const base = page.getViewport({ scale: 1, rotation: 0 });
 
     const effectiveHeight = window.innerHeight * 0.85;
@@ -74,6 +81,7 @@ function renderPage() {
 
     canvas.width  = viewport.width;
     canvas.height = viewport.height;
+
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
     page.render({ canvasContext: ctx, viewport });
@@ -94,34 +102,34 @@ function prevPage() {
   }
 }
 
-/* =============================
-   ⭐ 화면 전체 스와이프 (핵심)
-   ============================= */
+/* =========================
+   ⭐ Pointer Events 기반 스와이프
+   ========================= */
 let startX = 0;
 let startY = 0;
 
-document.addEventListener('touchstart', e => {
-  startX = e.touches[0].clientX;
-  startY = e.touches[0].clientY;
-}, { passive: false });
+wrap.addEventListener('pointerdown', e => {
+  startX = e.clientX;
+  startY = e.clientY;
+});
 
-document.addEventListener('touchmove', e => {
-  e.preventDefault();          /* ⭐ 브라우저가 못 가로채게 */
-}, { passive: false });
-
-document.addEventListener('touchend', e => {
-  const dx = e.changedTouches[0].clientX - startX;
-  const dy = e.changedTouches[0].clientY - startY;
+wrap.addEventListener('pointerup', e => {
+  const dx = e.clientX - startX;
+  const dy = e.clientY - startY;
 
   if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
     dx < 0 ? nextPage() : prevPage();
   }
-}, { passive: false });
+});
 
-/* 회전 대응 */
-window.addEventListener('resize', renderPage);
+/* 회전 / 주소창 변화 대응 */
+window.addEventListener('resize', () => {
+  requestAnimationFrame(renderPage);
+});
 window.visualViewport &&
-  window.visualViewport.addEventListener('resize', renderPage);
+  window.visualViewport.addEventListener('resize', () => {
+    requestAnimationFrame(renderPage);
+  });
 </script>
 
 </body>
