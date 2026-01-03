@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>내 문서 보관함</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .file-link {
+            display: block;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+        }
+        .file-link:active {
+            transform: scale(0.98); /* 터치 시 눌리는 효과 */
+            background-color: #eee;
+        }
+        .icon {
+            margin-right: 15px;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📄 기술 문서 목록</h1>
+
+    <div class="file-list">
+        
+        <a href="view.html?file=sample.pdf" class="file-link">
+            <span class="icon">📘</span>
+            <div>
+                <div>샘플 문서 (Sample)</div>
+                <div style="font-size:0.8rem; color:#888; margin-top:5px;">2024.01.03 업데이트</div>
+            </div>
+        </a>
+
+        <a href="view.html?file=manual_1.pdf" class="file-link">
+            <span class="icon">📕</span>
+            MECS 초음파 매뉴얼
+        </a>
+
+        <a href="view.html?file=circuit_v2.pdf" class="file-link">
+            <span class="icon">📗</span>
+            회로도면 V2.0
+        </a>
+
+    </div>
+
+</body>
+</html>
