@@ -92,7 +92,11 @@
 
     <script>
         // ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
-        var pdfUrl = 'a.pdf'; // 파일명 확인
+       // var pdfUrl = 'a.pdf'; // 파일명 확인
+
+        // 주소 뒤에 ?file=파일명.pdf 가 있으면 그걸 쓰고, 없으면 기본값 사용
+        const urlParams = new URLSearchParams(window.location.search);
+        var pdfUrl = urlParams.get('file') || 'sample.pdf';
         // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
